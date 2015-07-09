@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>My First Web Page</h1>
+<p>My first paragraph.</p>
+
+<p>
+Activate debugging in your browser (Chrome, IE, Firefox) with F12, and select "Console" in the debugger menu.
+</p>
+
+<script>
+
+var genStatusSegments = ['ext',['s','f'],['run','wrt'],'deg','rad','gra','tr','7s3','7s2','7s1','7s0','stop'];
+var statusSegments = [];
+
+function createDisplay(){
+    var body = document.body,
+        lcd  = document.createElement('table');
+    lcd.style.width  = '500px';
+    lcd.style.border = '1px solid black';
+    
+    var statusLine = lcd.insertRow();
+
+    var arrayLength = genStatusSegments.length;
+    
+    for(var i = 0; i < arrayLength; i++) {
+        var segBoth   = statusLine.insertCell();
+        var segs      = genStatusSegments[i];
+        console.log(segs);
+        if(Array.isArray(segs)) {
+            // создадим 2 параграфа друг над другом
+            var segTop    = document.createElement('p');
+            var segBottom = document.createElement('p');
+            segTop.id             = 'seg'.concat(segs[0].charAt(0).toUpperCase(), segs[0].slice(1));
+            segBottom.id          = 'seg'.concat(segs[1].charAt(0).toUpperCase(), segs[1].slice(1));
+            segTop.textContent    = segs[0];
+            segBottom.textContent = segs[1];
+            segBoth.appendChild(segTop);
+            segBoth.appendChild(segBottom);
+            statusSegments.push(segTop, segBottom);
+        } else {
+            // иначе попросту сделаем 1 ячейку
+            segBoth.id            = 'seg'.concat(segs.charAt(0).toUpperCase(), segs.slice(1));
+            segBoth.appendChild(document.createTextNode(segs));
+            statusSegments.push(segBoth);
+        }
+    }
+    console.log(statusSegments);
+    
+    body.appendChild(lcd);
+    
+}
+createDisplay();
+//tableCreate();
+
+console.log(5 + 6);
+</script>
+
+</body>
+</html> 
