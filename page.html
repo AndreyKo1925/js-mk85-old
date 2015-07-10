@@ -127,8 +127,25 @@ function createSimpleDisplay() {
 	emptyLcdString = s;
 }
 
+/* clear video ram */
+for (var i = 0; i < 96; i++) ram[i] = 0;
+ram[0] = 31;
+
+function timerFunction() {
+	redrawSimpleDisplay();
+	/* shift bit across the entire video ram */
+	for (var i = 0+96; i < 96+96; i++)
+	{
+		ram[i%96]<<=1;
+		ram[i%96]|=((ram[(i-1)%96]&32)?1:0);
+//		ram[i]=(Math.floor(Math.random()*255));
+	}
+}
+
 createSimpleDisplay();
 redrawSimpleDisplay();
+
+setInterval(timerFunction, 100);
 //tableCreate();
 
 console.log(5 + 6);
