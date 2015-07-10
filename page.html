@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+<meta charset="UTF-8">
 <body>
 
 <h1>My First Web Page</h1>
@@ -75,6 +76,7 @@ var emptyLcdString = '';
 
 function redrawSimpleDisplay() {
 	var textField = emptyLcdString;
+	var charField = '';
 	segLen = segments.length;
 	for (var i = 0; i < segLen; i++)
 	{
@@ -91,7 +93,19 @@ function redrawSimpleDisplay() {
 		}
 		console.log(byteIndex, bitMask, ram[byteIndex], bit);
 	}
-	lcd.innerHTML = '<pre>'+textField+'</pre>';
+	for (var lineOffset = 0; lineOffset < 7; lineOffset++) {
+		for (var charOffset = 1; charOffset != 89+8; charOffset+=8) {
+			var byteValue = ram[charOffset+lineOffset];
+			for (var bit = 0; bit < 5; bit++) {
+				charField += (byteValue&1) ? 'Ж' : '.';
+//				charField += (byteValue&1) ? '█' : '░';
+				byteValue>>=1;
+			}
+			charField += '  ';
+		}
+		charField += '\n';
+	}
+	lcd.innerHTML = '<pre>'+textField+charField+'</pre>';
 }
 
 function createSimpleDisplay() {
@@ -102,7 +116,7 @@ function createSimpleDisplay() {
 	lcd = div;
 	body.appendChild(div);
 	s = ''
-	for(var i = 0; i < 11; i++)
+	for(var i = 0; i < 4; i++)
 	{
 		for(var j = 0; j < 82; j++)
 		{
@@ -113,44 +127,6 @@ function createSimpleDisplay() {
 	emptyLcdString = s;
 }
 
-function createDisplay() {
-    var body = document.body,
-        lcd  = document.createElement('table');
-    lcd.style.width  = '500px';
-    lcd.style.border = '1px solid black';
-    lcd.style.fontFamily = 'monospace';
-    
-    var statusLine = lcd.insertRow();
-
-    var arrayLength = genStatusSegments.length;
-    
-    for(var i = 0; i < arrayLength; i++) {
-        var segBoth   = statusLine.insertCell();
-        var segs      = genStatusSegments[i];
-        console.log(segs);
-        if(Array.isArray(segs)) {
-            // создадим 2 параграфа друг над другом
-            var segTop    = document.createElement('p');
-            var segBottom = document.createElement('p');
-            segTop.id             = 'seg'.concat(segs[0].charAt(0).toUpperCase(), segs[0].slice(1));
-            segBottom.id          = 'seg'.concat(segs[1].charAt(0).toUpperCase(), segs[1].slice(1));
-            segTop.textContent    = segs[0];
-            segBottom.textContent = segs[1];
-            segBoth.appendChild(segTop);
-            segBoth.appendChild(segBottom);
-            statusSegments.push(segTop, segBottom);
-        } else {
-            // иначе попросту сделаем 1 ячейку
-            segBoth.id            = 'seg'.concat(segs.charAt(0).toUpperCase(), segs.slice(1));
-            segBoth.appendChild(document.createTextNode(segs));
-            statusSegments.push(segBoth);
-        }
-    }
-    console.log(statusSegments);
-    
-    body.appendChild(lcd);
-    
-}
 createSimpleDisplay();
 redrawSimpleDisplay();
 //tableCreate();
