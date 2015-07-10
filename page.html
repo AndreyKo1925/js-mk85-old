@@ -11,6 +11,16 @@ Activate debugging in your browser (Chrome, IE, Firefox) with F12, and select "C
 
 <script>
 
+//var ram = []
+var ram = new Uint8Array(2048);
+
+/* fill up ram with random crap */
+
+for(var i = 0; i < 2048; i++) {
+	ram[i]=(Math.floor(Math.random()*255));
+//	ram[i]=0xff;
+}
+
 var segments = [
 	/* special segments according to http://www.pisi.com.pl/piotr433/mk85hwe.htm#lcdc */
 	{row:3, col:1,  bit:0,   text:"E X T"},
@@ -39,13 +49,13 @@ var segments = [
 	{row:2, col:59, bit:514, text:"/"},		// b
 	{row:1, col:58, bit:515, text:"__"},	// a
 	// 7-segment 3
-	{row:2, col:64, bit:576, text:"_"},		// g
-	{row:2, col:63, bit:516, text:"/"},		// f
-	{row:3, col:62, bit:577, text:"/"},		// e
-	{row:3, col:63, bit:578, text:"_"},		// d
-	{row:3, col:64, bit:579, text:"/"},		// c
-	{row:2, col:65, bit:580, text:"/"},		// b
-	{row:1, col:64, bit:640, text:"__"},	// a
+	{row:2, col:65, bit:576, text:"_"},		// g
+	{row:2, col:64, bit:516, text:"/"},		// f
+	{row:3, col:63, bit:577, text:"/"},		// e
+	{row:3, col:64, bit:578, text:"_"},		// d
+	{row:3, col:65, bit:579, text:"/"},		// c
+	{row:2, col:66, bit:580, text:"/"},		// b
+	{row:1, col:65, bit:640, text:"__"},	// a
 	// 7-segment 4
 	{row:2, col:72, bit:642, text:"_"},		// g
 	{row:2, col:71, bit:641, text:"/"},		// f
@@ -60,6 +70,48 @@ var segments = [
 
 var genStatusSegments = ['ext',['s','f'],['run','wrt'],'deg','rad','gra','tr','7s3','7s2','7s1','7s0','stop'];
 var statusSegments = [];
+var lcd;
+var emptyLcdString = '';
+
+function redrawSimpleDisplay() {
+	var textField = emptyLcdString;
+	segLen = segments.length;
+	for (var i = 0; i < segLen; i++)
+	{
+		seg = segments[i];
+		/* Вычисляем байт/бит */
+		var byteIndex = seg.bit>>3;
+		var bitMask   = (1<<(seg.bit&7));
+		var bit       = ram[byteIndex] & bitMask;
+		if(bit)
+		{
+			textField = textField.substring(0, (seg.row-1)*(82+1)+(seg.col-1)) +
+			            seg.text + 
+			            textField.substring((seg.row-1)*(82+1)+(seg.col-1)+seg.text.length, textField.length);
+		}
+		console.log(byteIndex, bitMask, ram[byteIndex], bit);
+	}
+	lcd.innerHTML = '<pre>'+textField+'</pre>';
+}
+
+function createSimpleDisplay() {
+	var body = document.body,
+		div  = document.createElement('div');
+	div.style.border = '1px solid black';
+	div.style.fontFamily = 'monospace';
+	lcd = div;
+	body.appendChild(div);
+	s = ''
+	for(var i = 0; i < 11; i++)
+	{
+		for(var j = 0; j < 82; j++)
+		{
+			s += ' ';
+		}
+		s += '\n';
+	}
+	emptyLcdString = s;
+}
 
 function createDisplay() {
     var body = document.body,
@@ -99,7 +151,8 @@ function createDisplay() {
     body.appendChild(lcd);
     
 }
-createDisplay();
+createSimpleDisplay();
+redrawSimpleDisplay();
 //tableCreate();
 
 console.log(5 + 6);
