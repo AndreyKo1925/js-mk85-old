@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="mk85cpu.js" type="text/javascript" encoding="UTF-8"></script>
+</head>
+<meta charset="UTF-8">
+<body>
+
+<h1>MK85 CPU Debug</h1>
+
+<script>
+
+var ram = new Uint8Array(2048);
+var rom;
+var cpu = new MK85CPU('asdfsad');
+cpu.debug = true;
+
+cpu.readCallback = function (addr) {
+	return (addr&0x8000)?ram[addr&0x07FF]:rom[addr&0x7FFF];
+};
+
+
+var oReq = new XMLHttpRequest();
+oReq.open("GET", "/rom.bin", true);
+oReq.responseType = "arraybuffer";
+
+oReq.onload = function (oEvent) {
+  var arrayBuffer = oReq.response; // Note: not oReq.responseText
+  if (arrayBuffer) {
+    rom = new Uint8Array(arrayBuffer);
+    console.log("ROM loaded");
+//    cpu.doVector(0);    
+    cpu.doVector(cpu._RESET_VECTOR);
+    
+    };
+  };
+
+oReq.send(null);
+
+for(var i = 0; i < 2048; i++) {
+	ram[i]=(Math.floor(Math.random()*255));
+};
+
+
+
+
+</script>
+
+</body>
+</html> 

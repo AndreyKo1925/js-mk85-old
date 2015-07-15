@@ -86,7 +86,7 @@ MK85Display.prototype.redraw = function (video96Bytes) {
 			            seg.text + 
 			            textField.substring((seg.row-1)*(82+1)+(seg.col-1)+seg.text.length, textField.length);
 		}
-		console.log(byteIndex, bitMask, ram[byteIndex], bit);
+		//console.log(byteIndex, bitMask, ram[byteIndex], bit);
 	}
 	for (var lineOffset = 0; lineOffset < 7; lineOffset++) {
 		for (var charOffset = 1; charOffset != 89+8; charOffset+=8) {
