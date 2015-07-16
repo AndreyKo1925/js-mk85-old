@@ -31,6 +31,7 @@ oReq.onload = function (oEvent) {
     console.log("ROM loaded");
 //    cpu.doVector(0);    
     cpu.doVector(cpu._RESET_VECTOR);
+    cpu.execInstruction();
     
     };
   };
