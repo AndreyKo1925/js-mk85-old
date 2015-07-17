@@ -8,7 +8,39 @@
 
 <h1>MK85 CPU Debug</h1>
 
+<button type="button" onclick="cpustep()"> CPU step </button></br>
+<button type="button" onclick="cpu.reset()"> Reset </button></br>
+
+<p id="regs">regs</p><br>
+
 <script>
+
+var cpuflags = [
+	["H",0x0100],
+	["I",0x0080],
+	["T",0x0010],
+	["N",0x0008],
+	["Z",0x0004],
+	["V",0x0002],
+	["C",0x0001]];
+
+function cpustep(){
+	cpu.execInstruction();
+	regs = document.getElementById("regs");
+	regstr = "";
+	for(var i = 0; i<8; i++)
+	{
+		regstr += "R";
+		regstr += i.toString(10);
+		regstr += " = " + cpu.reg[i].toString(16);
+		regstr += "\n";
+	};
+	regstr += "PSW: ";
+	for(var j = 0; j < cpuflags.length; j++) {
+		regstr += (cpu.psw&cpuflags[j][1])?(cpuflags[j][0]):"-";
+	};
+	regs.innerHTML="<pre>"+regstr+"</pre>";
+}
 
 var ram = new Uint8Array(2048);
 var rom;
@@ -19,6 +51,11 @@ cpu.readCallback = function (addr) {
 	return (addr&0x8000)?ram[addr&0x07FF]:rom[addr&0x7FFF];
 };
 
+cpu.writeCallback = function (addr, byteVal) {
+	if(addr&0x8000) {
+		ram[addr&0x7FFF] = byteVal;
+	};
+};
 
 var oReq = new XMLHttpRequest();
 oReq.open("GET", "/rom.bin", true);
@@ -29,7 +66,6 @@ oReq.onload = function (oEvent) {
   if (arrayBuffer) {
     rom = new Uint8Array(arrayBuffer);
     console.log("ROM loaded");
-//    cpu.doVector(0);    
     cpu.doVector(cpu._RESET_VECTOR);
     cpu.execInstruction();
     
@@ -41,6 +77,7 @@ oReq.send(null);
 for(var i = 0; i < 2048; i++) {
 	ram[i]=(Math.floor(Math.random()*255));
 };
+
 
 
 
