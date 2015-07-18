@@ -2,6 +2,7 @@
 <html>
 <head>
 <script src="mk85cpu.js" type="text/javascript" encoding="UTF-8"></script>
+<script src="mk85display.js" type="text/javascript" encoding="UTF-8"></script>
 </head>
 <meta charset="UTF-8">
 <body>
@@ -25,7 +26,7 @@ var cpuflags = [
 	["C",0x0001]];
 
 function cpustep(){
-	cpu.execInstruction();
+//	cpu.execInstruction();
 	regs = document.getElementById("regs");
 	regstr = "";
 	for(var i = 0; i<8; i++)
@@ -45,7 +46,8 @@ function cpustep(){
 var ram = new Uint8Array(2048);
 var rom;
 var cpu = new MK85CPU('asdfsad');
-cpu.debug = true;
+//cpu.debug = true;
+cpu.debug = false;
 
 cpu.readCallback = function (addr) {
 	return (addr&0x8000)?ram[addr&0x07FF]:rom[addr&0x7FFF];
@@ -68,20 +70,16 @@ oReq.onload = function (oEvent) {
     console.log("ROM loaded");
     
     var wordAccess = new Uint16Array(arrayBuffer);
-    wordAccess[0x05a0] = 0xa1;
-    wordAccess[0x05a1] = 0xa2;
-    wordAccess[0x05a2] = 0xa4;
-    wordAccess[0x05a3] = 0xa8;
-    wordAccess[0x05a4] = 0xb1;
-    wordAccess[0x05a5] = 0xb2;
-    wordAccess[0x05a6] = 0xb4;
-    wordAccess[0x05a7] = 0xb8;
-    wordAccess[0x05a8] = 0xaf;
-    wordAccess[0x05a9] = 0xbf;
-    wordAccess[0x05aa] = 0xa0;
-    wordAccess[0x05ab] = 0x1f4;
+    wordAccess[0x05a0] = 0x15c0;	// mov  r0, 55aa
+    wordAccess[0x05a1] = 0x8030;	// swab r0
+    wordAccess[0x05a2] = 0x00c8;	// br -6
+    wordAccess[0x05a3] = 0x01fe;	// br -6
+
                     
     cpu.doVector(cpu._RESET_VECTOR);
+    
+    setInterval(doFrame, 200);
+    
     
 //    cpu.execInstruction();
     
@@ -89,6 +87,28 @@ oReq.onload = function (oEvent) {
   };
 
 oReq.send(null);
+
+function timerFunction() {
+	// блядский блять, TypedArray slice нету в хроме,
+	// шел 2015 год бля -__-
+	var video = [];
+	for (var i = 0; i < 96; i++) { video.push(ram[i]); }
+	//
+	lcd.redraw(video); //redrawSimpleDisplay();
+	/* shift bit across the entire video ram */
+}
+
+var lcd = new MK85Display('derpie');
+document.body.appendChild(lcd.initialize());
+
+function doFrame(){
+	for (var i = 0; i<1;i++)
+	{
+		cpu.execInstruction();
+	};
+	cpustep();
+	timerFunction();
+};
 
 for(var i = 0; i < 2048; i++) {
 	ram[i]=(Math.floor(Math.random()*255));

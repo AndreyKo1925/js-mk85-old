@@ -194,6 +194,14 @@ MK85CPU.prototype.getBranchCondition = function(opcode)
  *  Branch instruction (BRxx)
  *  Misc. instruction
  */
+ 
+ /*
+SWAB	0 000 000 011 ddd ddd	SWAP BYTES
+BRxx	c 000 0cc cxx xxx xxx	BRANCH (c=condition code, x=signed word offset)
+        8 421 842 184 218 421
+               11 1
+ */
+ 
 MK85CPU.prototype.executeX0XXXX = function(opcode)
 {
 	if(opcode&0x800)
@@ -201,7 +209,7 @@ MK85CPU.prototype.executeX0XXXX = function(opcode)
 		// Single-ops
 		// Misc.
 	} else {
-		if(opcode&0xFF00) {	// if high byte of the opcone is not 0, then it's a branch
+		if(opcode&0xFF00) {	// if high byte of the opcode is not 0, then it's a branch or misc.
 			// Branches
 			this.pad_u8[0] = opcode&0xff;		// get offset from opcode
 			var offset = this.pad_s8[0] * 2;	// convert it using view and multiply it
@@ -213,14 +221,33 @@ MK85CPU.prototype.executeX0XXXX = function(opcode)
 				this.reg_u16[7]+=offset;		// branch if branch condition if true
 			};
 		} else {	// misc. instructions otherwise
-			if((opcode&0xe0)==0xa0) // condition code operators and NOP
+			switch(opcode&0xc0)
 			{
-				if(this.debug)
+				case 0x80:
 				{
-					console.log((opcode&0x10)?"set":"reset", " flags", (opcode&0xf).toString(16));
+					if(opcode&0x20)
+					{
+						if(this.debug)
+						{
+							console.log((opcode&0x10)?"set":"reset",
+										" flags", (opcode&0xf).toString(16));
+						};
+						var bitmask = (opcode&0x0f);
+						this.psw = (opcode&0x10)?(this.psw|=bitmask):(this.psw&=~bitmask);
+						return;
+					}
 				};
-				var bitmask = (opcode&0x0f);
-				this.psw = (opcode&0x10)?(this.psw|=bitmask):(this.psw&=~bitmask);
+				case 0xc0:
+				{
+					/* SWAB */
+					var dst = this.addressMode(this.getDst(opcode), null, false);
+					var tmp = ((dst&0xff)<<8)|((dst>>8)&0xff);
+					this.addressMode(this.getDst(opcode), tmp, false);
+					this.flipFlag(this._V|this._C, false);
+					this.flipFlag(this._N, (tmp&0x0080));
+					this.flipFlag(this._Z, (tmp&0xff)==0);
+					break;
+				};
 			};
 		};
 	};
