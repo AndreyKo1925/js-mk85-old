@@ -2,12 +2,25 @@
 function MK85CPU(name) {
     this.name           = name;
     /* registers */
-    this.reg            = new Uint16Array(8);
+//    this.reg            = new Uint16Array(8);
     /* NOTE
      *  R6 is Stack Pointer,
      *  R7 is Instructioin Pointer,
      *  PSW is Processor Status Word.
      */
+     
+    this.regBuffer		= new ArrayBuffer(16);
+    this.reg_u16		= new Uint16Array(this.regBuffer);
+    this.reg_s16		= new Int16Array(this.regBuffer);
+    this.reg_u8			= new Uint8Array(this.regBuffer);	// Should double the pointer value
+    this.reg_s8			= new Int8Array(this.regBuffer);		// when accessing these
+
+	this.padBuffer		= new ArrayBuffer(16);
+    this.pad_u16		= new Uint16Array(this.padBuffer);
+    this.pad_s16		= new Int16Array(this.padBuffer);
+    this.pad_u8			= new Uint8Array(this.padBuffer);	// Should double the pointer value
+    this.pad_s8			= new Int8Array(this.padBuffer);		// when accessing these
+
     this.regSel         = 0x0000;   // HALT mode
     this.psw            = 0x0000;
     this.pc             = 0x0000;
@@ -47,19 +60,19 @@ MK85CPU.prototype.reset = function() {
 
 MK85CPU.prototype.doVector = function(vectorAddr) {
 	/* положить SP и IP на стек */
-	var PS = this.reg[6];
-	var PC = this.reg[7];
-	this.reg[6]-=2;
-	this.access(this.reg[6], PS, false);
-	this.reg[6]-=2;
-	this.access(this.reg[6], PC, false);
+	var PS = this.reg_u16[6];
+	var PC = this.reg_u16[7];
+	this.reg_u16[6]-=2;
+	this.access(this.reg_u16[6], PS, false);
+	this.reg_u16[6]-=2;
+	this.access(this.reg_u16[6], PC, false);
     /* Перейти на вектор */
-    this.reg[7] = this.access(0, null, false);
+    this.reg_u16[7] = this.access(0, null, false);
     this.psw = this.access(vectorAddr+2, null, false);
     if(this.debug)
     {
         console.log("go to vector (oct)", vectorAddr.toString(8),
-                    "\nIP  = ", this.reg[7].toString(16),
+                    "\nIP  = ", this.reg_u16[7].toString(16),
                     "\nPSW = ", this.psw.toString(16));
     };
 };
@@ -84,52 +97,52 @@ MK85CPU.prototype.addressMode = function(addrMode,val,isByte) {
         case 0: 
         {
             if(val===null) {
-                return this.reg[regIndex];
+                return this.reg_u16[regIndex];
             } else {
-                this.reg[regIndex] = val;
+                this.reg_u16[regIndex] = val;
                 return null;
             };
         };
         /* register deferred */
-        case 1: return this.access(this.reg[regIndex], val, isByte);
+        case 1: return this.access(this.reg_u16[regIndex], val, isByte);
         /* autoincrement */
         case 2: 
         {
-            var i = this.access(this.reg[regIndex], val, isByte);
-            this.reg[regIndex] += isByte?1:2;
+            var i = this.access(this.reg_u16[regIndex], val, isByte);
+            this.reg_u16[regIndex] += isByte?1:2;
             return i;
         };
         /* autoincrement deferred */
         case 3:
         {
-            var i = this.access(this.access(this.reg[regIndex], null, false), val, isByte);
-            this.reg[regIndex] += 2;
+            var i = this.access(this.access(this.reg_u16[regIndex], null, false), val, isByte);
+            this.reg_u16[regIndex] += 2;
             return i;
         };
         /* autodecrement */
         case 4:
         {
-            this.reg[regIndex] -= isByte?1:2;
-            return this.access(this.reg[regIndex], val, isByte);
+            this.reg_u16[regIndex] -= isByte?1:2;
+            return this.access(this.reg_u16[regIndex], val, isByte);
         };
         /* autodecrement deferred */
         case 5:
         {
-            this.reg[regIndex] -= 2;
-            return this.access(this.access(this.reg[regIndex], null, false), val, isByte);
+            this.reg_u16[regIndex] -= 2;
+            return this.access(this.access(this.reg_u16[regIndex], null, false), val, isByte);
         };
         /* index */
         case 6:
         {
-            var i =  this.access((this.reg[regIndex]+this.access(this.reg[7], null, false)), val, isByte);
-            this.reg[7]+=2;
+            var i =  this.access((this.reg_u16[regIndex]+this.access(this.reg_u16[7], null, false)), val, isByte);
+            this.reg_u16[7]+=2;
             return i;
         };
         /* index deferred */
         case 7:
         {
-            var i = this.access(this.access((this.reg[regIndex]+this.access(this.reg[7], null, false)), null, false), val, isByte);
-            this.reg[7]+=2;
+            var i = this.access(this.access((this.reg_u16[regIndex]+this.access(this.reg_u16[7], null, false)), null, false), val, isByte);
+            this.reg_u16[7]+=2;
             return i;
         };
     };
@@ -138,39 +151,98 @@ MK85CPU.prototype.addressMode = function(addrMode,val,isByte) {
 MK85CPU.prototype.getSrc = function(opcode) { return (opcode>>6)&0x3F; };
 MK85CPU.prototype.getDst = function(opcode) { return (opcode)&0x3F; };
 
-/* Just a bit of eye-candy */
+/* eye-candy */
 MK85CPU.prototype.flipFlag = function(flag, cond) {
 	this.psw = (cond)?(this.psw|=flag):(this.psw&=~(flag));
 };
 
+/* eye-candy */
+MK85CPU.prototype.get3Bits = function(value, bitGroup) { return (value>>(3*bitGroup))&0x07; };
+
+/* return BRanch instruction decision based on branch code
+ * - true if branch
+ * - false if skip
+ */
+MK85CPU.prototype.getBranchCondition = function(opcode)
+{
+	/* entire BR instruction logic is in there */
+	var b15 = (opcode&0x8000)?true:false;
+	var b10 = (opcode&0x0400)?true:false;
+	var b9  = (opcode&0x0200)?true:false;
+	var b8  = (opcode&0x0100)?true:false;
+	/* unconditional "flag" */
+	var uncond = (((opcode^0x8600)&0x8600)==0x8600);
+	/* Z flag enabled */
+	var Z = ((this.psw&this._Z)?true:false) && b9 && !(b10 && b15);
+	/* C flag enabled */
+	var C = ((this.psw&this._C)?true:false) && b9 && b15;
+	/* V flag enabled */
+	var V = ((this.psw&this._V)?true:false) && ((b10 && !b15) || (b15 && b10 && !b9));
+	/* N flag enabled */
+	var N = ((this.psw&this._N)?true:false) && (b10 || (b15 && !(b10 || b9)));
+	/* compute actual value */
+	var result = (uncond || (Z || (N != V) || C)) == b8;
+	if(this.debug)
+	{
+		console.log("branch decision = ", result);
+	};
+	return result;
+};
+
+/* execute:
+ *  Single-operand instruction
+ *  Branch instruction (BRxx)
+ *  Misc. instruction
+ */
+MK85CPU.prototype.executeX0XXXX = function(opcode)
+{
+	if(opcode&0x800)
+	{
+		// Single-ops
+		// Misc.
+	} else {
+		if(opcode&0xFF00) {	// if high byte of the opcone is not 0, then it's a branch
+			// Branches
+			this.pad_u8[0] = opcode&0xff;		// get offset from opcode
+			var offset = this.pad_s8[0] * 2;	// convert it using view and multiply it
+			if (this.debug) {
+				console.log("branch ", offset, (this.reg_u16[7]+offset).toString(16));
+			};
+			if(this.getBranchCondition(opcode))
+			{
+				this.reg_u16[7]+=offset;		// branch if branch condition if true
+			};
+		} else {	// misc. instructions otherwise
+			if((opcode&0xe0)==0xa0) // condition code operators and NOP
+			{
+				if(this.debug)
+				{
+					console.log((opcode&0x10)?"set":"reset", " flags", (opcode&0xf).toString(16));
+				};
+				var bitmask = (opcode&0x0f);
+				this.psw = (opcode&0x10)?(this.psw|=bitmask):(this.psw&=~bitmask);
+			};
+		};
+	};
+	return;
+};
+
 MK85CPU.prototype.execInstruction = function() {
     /* Исполняет 1 машинную операцию */
-    var opcode = this.access(this.reg[7], null, false);
+    var opcode = this.access(this.reg_u16[7], null, false);
     /* увеличиваем счетчик инструкций */
-    this.reg[7]+=2;
+    this.reg_u16[7]+=2;
 
-	switch((opcode>>12)&0x07)
+	switch(this.get3Bits(opcode,4))
 	{
 		case 0:
 		{
-			switch((opcode>>9)&0x07)
-			{
-				case 0:
-				{
-					switch((opcode>>6)&0x07)
-					{
-						case 1:	// JMP
-						{
-							if(this.getDst(opcode)&0x38)
-							{
-								this.reg[7] = this.addressMode(this.getDst(opcode), null, false);
-							} else {
-								this.doVector(this._TRAP_RESERVED_OPCODE);
-							};
-						};
-					};
-				};
-			};
+			/* Single operand instructions,
+			 * Branch instructions,
+			 * miscellanious
+			 */
+			this.executeX0XXXX(opcode);
+			break;
 		};
 		case 1:	// MOV[B]
 		{
@@ -259,12 +331,12 @@ MK85CPU.prototype.execInstruction = function() {
 //		case 4:
 	};
 
-    if(this.debug) console.log("IP = ",this.reg[7].toString(16),"opcode = ",opcode.toString(16));
+    if(this.debug) console.log("IP = ",this.reg_u16[7].toString(16),"opcode = ",opcode.toString(16));
 
 };
 MK85CPU.prototype.HALT = function(vector) {
-	this.cpc = this.reg[7];
-	this.cps = this.reg[6];
-	if(this.psw&this._H) this.reg[7] = 0x78|(this.sel&0xFF00);
+	this.cpc = this.reg_u16[7];
+	this.cps = this.reg_u16[6];
+	if(this.psw&this._H) this.reg_u16[7] = 0x78|(this.sel&0xFF00);
 };
 

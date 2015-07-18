@@ -32,7 +32,7 @@ function cpustep(){
 	{
 		regstr += "R";
 		regstr += i.toString(10);
-		regstr += " = " + cpu.reg[i].toString(16);
+		regstr += " = " + cpu.reg_u16[i].toString(16);
 		regstr += "\n";
 	};
 	regstr += "PSW: ";
@@ -66,8 +66,24 @@ oReq.onload = function (oEvent) {
   if (arrayBuffer) {
     rom = new Uint8Array(arrayBuffer);
     console.log("ROM loaded");
+    
+    var wordAccess = new Uint16Array(arrayBuffer);
+    wordAccess[0x05a0] = 0xa1;
+    wordAccess[0x05a1] = 0xa2;
+    wordAccess[0x05a2] = 0xa4;
+    wordAccess[0x05a3] = 0xa8;
+    wordAccess[0x05a4] = 0xb1;
+    wordAccess[0x05a5] = 0xb2;
+    wordAccess[0x05a6] = 0xb4;
+    wordAccess[0x05a7] = 0xb8;
+    wordAccess[0x05a8] = 0xaf;
+    wordAccess[0x05a9] = 0xbf;
+    wordAccess[0x05aa] = 0xa0;
+    wordAccess[0x05ab] = 0x1f4;
+                    
     cpu.doVector(cpu._RESET_VECTOR);
-    cpu.execInstruction();
+    
+//    cpu.execInstruction();
     
     };
   };
