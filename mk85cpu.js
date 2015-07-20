@@ -1,7 +1,5 @@
 function MK85CPU(name) {
     this.name           = name;
-    /* registers */
-//    this.reg            = new Uint16Array(8);
     /* NOTE
      *  R6 is Stack Pointer,
      *  R7 is Instructioin Pointer,
@@ -19,6 +17,12 @@ function MK85CPU(name) {
     this.pad_s16		= new Int16Array(this.padBuffer);
     this.pad_u8			= new Uint8Array(this.padBuffer);	// Should double the pointer value
     this.pad_s8			= new Int8Array(this.padBuffer);		// when accessing these
+
+	this.ip				= new Uint16Array(2);	// "fake" instruction pointer used for 
+												// offsetting inside an instruction while
+												// reading multi-word ones
+												// index 0 is absolute address
+												// index 1 is offset from actual IP
 
     this.regSel         = 0x0000;   // HALT mode
     this.psw            = 0x0000;
@@ -88,68 +92,6 @@ MK85CPU.prototype.access = function(addr,writeVal,isByte) {
     };
 };
 
-MK85CPU.prototype.addressMode = function(addrMode,val,isByte) {
-    /* warning ! increments IP if mode is 'index deferred' */
-    var regIndex = addrMode&7;
-    switch((addrMode>>3)&0x07)
-    {
-        /* register */
-        case 0: 
-        {
-            if(val===null) {
-                return this.reg_u16[regIndex];
-            } else {
-                this.reg_u16[regIndex] = val;
-                return null;
-            };
-        };
-        /* register deferred */
-        case 1: return this.access(this.reg_u16[regIndex], val, isByte);
-        /* autoincrement */
-        case 2: 
-        {
-            var i = this.access(this.reg_u16[regIndex], val, isByte);
-            this.reg_u16[regIndex] += isByte?1:2;
-            return i;
-        };
-        /* autoincrement deferred */
-        case 3:
-        {
-            var i = this.access(this.access(this.reg_u16[regIndex], null, false), val, isByte);
-            this.reg_u16[regIndex] += 2;
-            return i;
-        };
-        /* autodecrement */
-        case 4:
-        {
-            this.reg_u16[regIndex] -= isByte?1:2;
-            return this.access(this.reg_u16[regIndex], val, isByte);
-        };
-        /* autodecrement deferred */
-        case 5:
-        {
-            this.reg_u16[regIndex] -= 2;
-            return this.access(this.access(this.reg_u16[regIndex], null, false), val, isByte);
-        };
-        /* index */
-        case 6:
-        {
-        	var j = (this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false));
-        	console.log("mode 6 ",j.toString(16));
-            var i =  this.access(j , val, isByte);
-            this.reg_u16[7]+=2;
-            return i;
-        };
-        /* index deferred */
-        case 7:
-        {
-            var i = this.access(this.access((this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false)), null, false), val, isByte);
-            this.reg_u16[7]+=2;
-            return i;
-        };
-    };
-};
-
 
 MK85CPU.prototype.getLocation = function(addrMode, isByte) {
 	var isReg   = (addrMode&0x38)?false:true;
@@ -157,7 +99,7 @@ MK85CPU.prototype.getLocation = function(addrMode, isByte) {
 	var bitmask = isByte?0xff:0xffff;
 	var immediate;
 	var resultAddr;
-	if((addrMode&0x38)>0) {
+	if(addrMode&0x38) {
 		if((addrMode^0x30)&0x30) {
 			// modes 1 through 6
 			this.reg_u16[regNum]-=((addrMode&0x30)==0x20)?((isByte && (addrMode&0x08))?1:2):0;
@@ -165,9 +107,10 @@ MK85CPU.prototype.getLocation = function(addrMode, isByte) {
 			this.reg_u16[regNum]+=((addrMode&0x30)==0x10)?((isByte && (addrMode&0x08))?1:2):0;
 		} else {
 			// Index [deferred]
-			immediate = (this.reg_u16[regNum] + 2 + this.access(this.reg_u16[7], null, false));
-			console.log("--------im", immediate.toString(16));
+			immediate = (this.reg_u16[regNum] + 2 + this.ip[1] + this.access(this.reg_u16[7], null, false));
 			this.reg_u16[7]+=2;
+/*			this.ip[0]+=2;
+			this.ip[1]+=2;*/
 		};
 		resultAddr = (addrMode&0x08)?this.access(immediate, null, false):immediate;
 	} else {
@@ -187,7 +130,7 @@ MK85CPU.prototype.readLocation = function(whereTheFuckAreMyPointersGoddamit, isB
 
 MK85CPU.prototype.writeLocation = function(location, val, isByte) {
 	if(location[0]) {
-		this.reg_u16[location[1]] = val;
+		if(isByte){ this.reg_u8[location[1]<<1] = val; } else { this.reg_u16[location[1]] = val };
 	} else {
 		this.access(location[1], val, isByte);
 	};
@@ -240,16 +183,17 @@ MK85CPU.prototype.addressMode = function(addrMode,val,isByte) {
         case 6:
         {
         	var j = (this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false));
-        	console.log("mode 6 ",j.toString(16));
             var i =  this.access(j , val, isByte);
-            this.reg_u16[7]+=2;
+/*            this.ip[0]+=2;
+            this.ip[1]+=2;*/
             return i;
         };
         /* index deferred */
         case 7:
         {
             var i = this.access(this.access((this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false)), null, false), val, isByte);
-            this.reg_u16[7]+=2;
+/*            this.ip[0]+=2;
+            this.ip[1]+=2;*/
             return i;
         };
     };
@@ -303,13 +247,6 @@ MK85CPU.prototype.getBranchCondition = function(opcode)
  *  Misc. instruction
  */
  
- /*
-SWAB	0 000 000 011 ddd ddd	SWAP BYTES
-BRxx	c 000 0cc cxx xxx xxx	BRANCH (c=condition code, x=signed word offset)
-        8 421 842 184 218 421
-               11 1
- */
- 
 MK85CPU.prototype.executeX0XXXX = function(opcode)
 {
 	if(opcode&0x800)
@@ -347,23 +284,20 @@ MK85CPU.prototype.executeX0XXXX = function(opcode)
 				};
 				case 0xc0:
 				{
-					console.log("swabby");
 					/* SWAB */
+					// get pointer to location
+					console.log("derp1");
 					var dst = this.getLocation(this.getDst(opcode), false);
+					console.log("derp2", dst[1].toString(16));
 					var val = this.readLocation(dst, false);
-					//var dst = this.addressMode(this.getDst(opcode), null, false);
-					// to counter increment that's made in addressMode
-					this.reg_u16[7]-=2;
-					//
-					console.log(" dest ",dst[1].toString(16));
-					//var tmp = ((dst&0xff)<<8)|((dst>>8)&0xff);
+					console.log("derp3");
+					// swap bytes
 					var tmp = ((val&0xff)<<8)|((val>>8)&0xff);
-					//this.addressMode(this.getDst(opcode), tmp, false);
+
 					this.writeLocation(dst, tmp, false);
 					this.flipFlag(this._V|this._C, false);
 					this.flipFlag(this._N, (tmp&0x0080));
 					this.flipFlag(this._Z, (tmp&0xff)==0);
-					break;
 				};
 			};
 		};
@@ -374,26 +308,46 @@ MK85CPU.prototype.executeX0XXXX = function(opcode)
 MK85CPU.prototype.execInstruction = function() {
     /* Исполняет 1 машинную операцию */
     var opcode = this.access(this.reg_u16[7], null, false);
-    /* увеличиваем счетчик инструкций */
+    this.ip[0] = this.reg_u16[7];
     this.reg_u16[7]+=2;
-	console.log(this.reg_u16[7].toString(16));
+    /* увеличиваем счетчик инструкций */
+/*    this.ip[0] = this.reg_u16[7] + 2;
+    this.ip[1] = 2;*/
+    if(this.debug) console.log("IP = ",this.reg_u16[7].toString(16),"opcode = ",opcode.toString(16));
+	var bit15 = (opcode&0x8000)?true:false;
 
+	var sect4 = this.get3Bits(opcode,4);
+	
+/*	try {
+		if (sect4 == 0)
+		{
+			this.executeX0XXXX(opcode);
+			break;
+		}
+	}
+	catch(err) {
+		// we'll use that to catch CPU exceptions
+		// do nothing yet
+	}
+*/
 	switch(this.get3Bits(opcode,4))
-	{
+	{	
 		case 0:
 		{
 			/* Single operand instructions,
 			 * Branch instructions,
 			 * miscellanious
 			 */
-			 console.log("case 0");
 			this.executeX0XXXX(opcode);
 			break;
 		};
 		case 1:	// MOV[B]
 		{
-			var src = this.addressMode(this.getSrc(opcode), null, opcode&0x8000);
-			this.addressMode(this.getDst(opcode), src, opcode&0x8000);
+			var src = this.getLocation(this.getSrc(opcode), bit15);
+			var dst = this.getLocation(this.getDst(opcode), bit15);
+			console.log("MOV ", src[1].toString(16), dst[1].toString(16));
+			//this.pad_u16[0] = this.readLocation(src, bit15);
+			this.writeLocation(dst, this.readLocation(src, bit15), bit15);
 			this.flipFlag(this._N, (src<0));
 			this.flipFlag(this._Z, (src==0));
 			this.flipFlag(this._V, false);
@@ -420,39 +374,6 @@ MK85CPU.prototype.execInstruction = function() {
 			this.flipFlag(this._V, false);
 			break;
 		};
-		case 0: // команды с 1 операндом + команды перехода
-		{
-			if(opcode&(0x400)) {    // single operand
-			    switch((opcode>>6)&0x1F)
-			    {
-			        // SWAB
-			        // CLR[B]
-			        // COM[B]
-			        // INC[B]
-			        // DEC[B]
-			        // NEG[B]
-			        // ADC[B]
-			        // SBC[B]
-			        // TST[B]
-			        // ROR[B]
-			        // ROL[B]
-			        // ASR[B]
-			        // ASL[B]
-			        // MARK
-			        // MTPS
-			        // MFPI
-			        // MFPD
-			        // MTPI
-			        // MTPD
-			        // SXT
-			        // MFPS
-			    };
-			} else {                // conditional branch
-			    // HALT
-			    
-			};
-			break;
-		};
 		case 7:
 		{
 		    // Some additional two-operand instructions
@@ -476,8 +397,6 @@ MK85CPU.prototype.execInstruction = function() {
 		};
 //		case 4:
 	};
-
-    if(this.debug) console.log("IP = ",this.reg_u16[7].toString(16),"opcode = ",opcode.toString(16));
 
 };
 MK85CPU.prototype.HALT = function(vector) {

@@ -9,7 +9,7 @@
 
 <h1>MK85 CPU Debug</h1>
 
-<button type="button" onclick="cpustep()"> CPU step </button></br>
+<button type="button" onclick="doFrame()"> CPU step </button></br>
 <button type="button" onclick="cpu.reset()"> Reset </button></br>
 
 <p id="regs">regs</p><br>
@@ -51,8 +51,8 @@ var ram_u16 = new Uint16Array(ramBuf);
 
 var rom;
 var cpu = new MK85CPU('asdfsad');
-//cpu.debug = true;
-cpu.debug = false;
+cpu.debug = true;
+//cpu.debug = false;
 
 cpu.readCallback = function (addr) {
 	return (addr&0x8000)?ram_u8[addr&0x07FF]:rom[addr&0x7FFF];
@@ -76,9 +76,15 @@ oReq.onload = function (oEvent) {
     
     var wordAccess = new Uint16Array(arrayBuffer);
 
-    ram_u16[0] = 0x00f7;
-    ram_u16[1] = 0x0002;
-    ram_u16[2] = 0x01fd;
+    ram_u16[0] = 0x15c0;
+    ram_u16[1] = 0x8010;
+    ram_u16[2] = 0x15c1;
+    ram_u16[3] = 0x55aa;
+    ram_u16[4] = 0x1050;
+    ram_u16[5] = 0x01fe;
+    ram_u16[6] = 0x0000;
+    ram_u16[7] = 0x0000;    
+    ram_u16[8] = 0x0000;
     wordAccess[0x05a0] = 0x15c0;	// mov  r0, 55aa
     wordAccess[0x05a1] = 0x8030;	// swab r0
     wordAccess[0x05a2] = 0x00c8;	// br -6
@@ -87,7 +93,7 @@ oReq.onload = function (oEvent) {
                     
 //    cpu.doVector(cpu._RESET_VECTOR);
     cpu.reg_u16[7] = 0x8000;
-    setInterval(doFrame, 200);
+//    setInterval(doFrame, 200);
     
     
 //    cpu.execInstruction();
