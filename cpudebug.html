@@ -44,18 +44,23 @@ function cpustep(){
 }
 
 var ram = new Uint8Array(2048);
+
+var ramBuf = new ArrayBuffer(2048);
+var ram_u8 = new Uint8Array(ramBuf);
+var ram_u16 = new Uint16Array(ramBuf);
+
 var rom;
 var cpu = new MK85CPU('asdfsad');
 //cpu.debug = true;
 cpu.debug = false;
 
 cpu.readCallback = function (addr) {
-	return (addr&0x8000)?ram[addr&0x07FF]:rom[addr&0x7FFF];
+	return (addr&0x8000)?ram_u8[addr&0x07FF]:rom[addr&0x7FFF];
 };
 
 cpu.writeCallback = function (addr, byteVal) {
 	if(addr&0x8000) {
-		ram[addr&0x7FFF] = byteVal;
+		ram_u8[addr&0x7FFF] = byteVal;
 	};
 };
 
@@ -70,14 +75,18 @@ oReq.onload = function (oEvent) {
     console.log("ROM loaded");
     
     var wordAccess = new Uint16Array(arrayBuffer);
+
+    ram_u16[0] = 0x00f7;
+    ram_u16[1] = 0x0002;
+    ram_u16[2] = 0x01fd;
     wordAccess[0x05a0] = 0x15c0;	// mov  r0, 55aa
     wordAccess[0x05a1] = 0x8030;	// swab r0
     wordAccess[0x05a2] = 0x00c8;	// br -6
     wordAccess[0x05a3] = 0x01fe;	// br -6
 
                     
-    cpu.doVector(cpu._RESET_VECTOR);
-    
+//    cpu.doVector(cpu._RESET_VECTOR);
+    cpu.reg_u16[7] = 0x8000;
     setInterval(doFrame, 200);
     
     
@@ -92,7 +101,7 @@ function timerFunction() {
 	// блядский блять, TypedArray slice нету в хроме,
 	// шел 2015 год бля -__-
 	var video = [];
-	for (var i = 0; i < 96; i++) { video.push(ram[i]); }
+	for (var i = 0; i < 96; i++) { video.push(ram_u8[i]); }
 	//
 	lcd.redraw(video); //redrawSimpleDisplay();
 	/* shift bit across the entire video ram */
@@ -102,16 +111,16 @@ var lcd = new MK85Display('derpie');
 document.body.appendChild(lcd.initialize());
 
 function doFrame(){
+	cpustep();
+	timerFunction();
 	for (var i = 0; i<1;i++)
 	{
 		cpu.execInstruction();
 	};
-	cpustep();
-	timerFunction();
 };
 
 for(var i = 0; i < 2048; i++) {
-	ram[i]=(Math.floor(Math.random()*255));
+	ram_u8[i]=(Math.floor(Math.random()*255));
 };
 
 

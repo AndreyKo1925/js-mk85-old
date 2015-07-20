@@ -1,4 +1,3 @@
-
 function MK85CPU(name) {
     this.name           = name;
     /* registers */
@@ -57,6 +56,7 @@ function MK85CPU(name) {
 MK85CPU.prototype.reset = function() {
 	this.doVector(this._RESET_VECTOR);
 };
+
 
 MK85CPU.prototype.doVector = function(vectorAddr) {
 	/* положить SP и IP на стек */
@@ -134,19 +134,127 @@ MK85CPU.prototype.addressMode = function(addrMode,val,isByte) {
         /* index */
         case 6:
         {
-            var i =  this.access((this.reg_u16[regIndex]+this.access(this.reg_u16[7], null, false)), val, isByte);
+        	var j = (this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false));
+        	console.log("mode 6 ",j.toString(16));
+            var i =  this.access(j , val, isByte);
             this.reg_u16[7]+=2;
             return i;
         };
         /* index deferred */
         case 7:
         {
-            var i = this.access(this.access((this.reg_u16[regIndex]+this.access(this.reg_u16[7], null, false)), null, false), val, isByte);
+            var i = this.access(this.access((this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false)), null, false), val, isByte);
             this.reg_u16[7]+=2;
             return i;
         };
     };
 };
+
+
+MK85CPU.prototype.getLocation = function(addrMode, isByte) {
+	var isReg   = (addrMode&0x38)?false:true;
+	var regNum	= addrMode&0x07;
+	var bitmask = isByte?0xff:0xffff;
+	var immediate;
+	var resultAddr;
+	if((addrMode&0x38)>0) {
+		if((addrMode^0x30)&0x30) {
+			// modes 1 through 6
+			this.reg_u16[regNum]-=((addrMode&0x30)==0x20)?((isByte && (addrMode&0x08))?1:2):0;
+			immediate = this.reg_u16[regNum];
+			this.reg_u16[regNum]+=((addrMode&0x30)==0x10)?((isByte && (addrMode&0x08))?1:2):0;
+		} else {
+			// Index [deferred]
+			immediate = (this.reg_u16[regNum] + 2 + this.access(this.reg_u16[7], null, false));
+			console.log("--------im", immediate.toString(16));
+			this.reg_u16[7]+=2;
+		};
+		resultAddr = (addrMode&0x08)?this.access(immediate, null, false):immediate;
+	} else {
+		// register mode
+		resultAddr = regNum;
+	};
+	return [isReg, resultAddr];
+};
+
+MK85CPU.prototype.readLocation = function(whereTheFuckAreMyPointersGoddamit, isByte) {
+	if(whereTheFuckAreMyPointersGoddamit[0]) {
+		return this.reg_u16[whereTheFuckAreMyPointersGoddamit[1]];
+	} else {
+		return this.access(whereTheFuckAreMyPointersGoddamit[1], null, isByte);
+	};
+};
+
+MK85CPU.prototype.writeLocation = function(location, val, isByte) {
+	if(location[0]) {
+		this.reg_u16[location[1]] = val;
+	} else {
+		this.access(location[1], val, isByte);
+	};
+};
+
+MK85CPU.prototype.addressMode = function(addrMode,val,isByte) {
+    /* warning ! increments IP if mode is 'index deferred' */
+    var regIndex = addrMode&7;
+    switch((addrMode>>3)&0x07)
+    {
+        /* register */
+        case 0: 
+        {
+            if(val===null) {
+                return this.reg_u16[regIndex];
+            } else {
+                this.reg_u16[regIndex] = val;
+                return null;
+            };
+        };
+        /* register deferred */
+        case 1: return this.access(this.reg_u16[regIndex], val, isByte);
+        /* autoincrement */
+        case 2: 
+        {
+            var i = this.access(this.reg_u16[regIndex], val, isByte);
+            this.reg_u16[regIndex] += isByte?1:2;
+            return i;
+        };
+        /* autoincrement deferred */
+        case 3:
+        {
+            var i = this.access(this.access(this.reg_u16[regIndex], null, false), val, isByte);
+            this.reg_u16[regIndex] += 2;
+            return i;
+        };
+        /* autodecrement */
+        case 4:
+        {
+            this.reg_u16[regIndex] -= isByte?1:2;
+            return this.access(this.reg_u16[regIndex], val, isByte);
+        };
+        /* autodecrement deferred */
+        case 5:
+        {
+            this.reg_u16[regIndex] -= 2;
+            return this.access(this.access(this.reg_u16[regIndex], null, false), val, isByte);
+        };
+        /* index */
+        case 6:
+        {
+        	var j = (this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false));
+        	console.log("mode 6 ",j.toString(16));
+            var i =  this.access(j , val, isByte);
+            this.reg_u16[7]+=2;
+            return i;
+        };
+        /* index deferred */
+        case 7:
+        {
+            var i = this.access(this.access((this.reg_u16[regIndex]+2+this.access(this.reg_u16[7], null, false)), null, false), val, isByte);
+            this.reg_u16[7]+=2;
+            return i;
+        };
+    };
+};
+
 
 MK85CPU.prototype.getSrc = function(opcode) { return (opcode>>6)&0x3F; };
 MK85CPU.prototype.getDst = function(opcode) { return (opcode)&0x3F; };
@@ -239,10 +347,19 @@ MK85CPU.prototype.executeX0XXXX = function(opcode)
 				};
 				case 0xc0:
 				{
+					console.log("swabby");
 					/* SWAB */
-					var dst = this.addressMode(this.getDst(opcode), null, false);
-					var tmp = ((dst&0xff)<<8)|((dst>>8)&0xff);
-					this.addressMode(this.getDst(opcode), tmp, false);
+					var dst = this.getLocation(this.getDst(opcode), false);
+					var val = this.readLocation(dst, false);
+					//var dst = this.addressMode(this.getDst(opcode), null, false);
+					// to counter increment that's made in addressMode
+					this.reg_u16[7]-=2;
+					//
+					console.log(" dest ",dst[1].toString(16));
+					//var tmp = ((dst&0xff)<<8)|((dst>>8)&0xff);
+					var tmp = ((val&0xff)<<8)|((val>>8)&0xff);
+					//this.addressMode(this.getDst(opcode), tmp, false);
+					this.writeLocation(dst, tmp, false);
 					this.flipFlag(this._V|this._C, false);
 					this.flipFlag(this._N, (tmp&0x0080));
 					this.flipFlag(this._Z, (tmp&0xff)==0);
@@ -259,6 +376,7 @@ MK85CPU.prototype.execInstruction = function() {
     var opcode = this.access(this.reg_u16[7], null, false);
     /* увеличиваем счетчик инструкций */
     this.reg_u16[7]+=2;
+	console.log(this.reg_u16[7].toString(16));
 
 	switch(this.get3Bits(opcode,4))
 	{
@@ -268,6 +386,7 @@ MK85CPU.prototype.execInstruction = function() {
 			 * Branch instructions,
 			 * miscellanious
 			 */
+			 console.log("case 0");
 			this.executeX0XXXX(opcode);
 			break;
 		};

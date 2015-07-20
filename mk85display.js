@@ -90,7 +90,7 @@ MK85Display.prototype.redraw = function (video96Bytes) {
 	}
 	for (var lineOffset = 0; lineOffset < 7; lineOffset++) {
 		for (var charOffset = 1; charOffset != 89+8; charOffset+=8) {
-			var byteValue = ram[charOffset+lineOffset];
+			var byteValue = video96Bytes[charOffset+lineOffset];
 			for (var bit = 0; bit < 5; bit++) {
 				charField += (byteValue&1) ? 'Ж' : '.';
 //				charField += (byteValue&1) ? '█' : '░';
